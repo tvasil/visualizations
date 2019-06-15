@@ -1,0 +1,102 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(purrr)
+library(forcats)
+
+dt <- fread('data/economist_data.csv', select = 2:5, stringsAsFactors = T)
+
+factor_new_levels <- list("EU W. Europe" = "OECD",
+"Americas" = "Americas",
+"Asia Pacific" = "Asia &\nOceania",
+"East EU Cemt Asia" = "Central &\nEastern Europe",
+"MENA" = "Middle East &\nnorth Africa",
+"SSA" = "Sub-Saharan\nAfrica")
+factor_new_levels_vector <- unlist(factor_new_levels)
+new_levels <- unname(factor_new_levels_vector[levels(dt$Region)])
+levels(dt$Region) <- new_levels
+
+ggplot(dt, aes(x = CPI, y = HDI)) + 
+  geom_point(aes(color = Region), shape = 1, size = 2.5, stroke = 1.25) + 
+  geom_smooth(aes(linetype = 'r2'), se = F, color = 'maroon', method = 'lm', formula = y ~ x + log(x)) + 
+  labs(title = "Corruption and human development", x = "Corruption Perceptions Index, 2011 (10 = least corrupt)", 
+       y = "Human Development Index, 2011 (1 = best)") -> gg
+
+```
+# Next step
+```{r}
+library(ggrepel)
+
+countries_to_label <- c("Russia", "Venezuela", "Iraq", "Myanmar", "Sudan",
+"Afghanistan", "Congo", "Greece", "Argentina", "Brazil",
+"India", "Italy", "China", "South Africa", "Spane",
+"Botswana", "Cape Verde", "Bhutan", "Rwanda", "France",
+"United States", "Germany", "Britain", "Barbados", "Norway", "Japan",
+"New Zealand", "Singapore")
+
+gg + geom_text_repel(aes(label = Country), data = dt[Country %in% countries_to_label], color = 'grey20', force = 10) -> gg
+
+gg
+```
+# Add right colors
+```{r}
+x_scale <- scale_x_continuous(name = "Corruption Perceptions Index, 2011 (10=least corrupt)",
+                              limits = c(.9, 10.5),
+                              breaks = 1:10)
+y_scale <- scale_y_continuous(name = "Human Development Index, 2011 (1=Best)",
+                              limits = c(0.2, 1.0),
+                              breaks = seq(0.2, 1.0, by = 0.1))
+color_scale <- scale_color_manual(name = "",
+                                  values = c("#24576D","#099DD7","#28AADC","#248E84","#F2583F","#96503F"))
+
+
+gg + x_scale + y_scale + color_scale -> gg
+
+gg
+```
+# Add the new theme
+```{r}
+theme_minimal() + # start with a minimal theme and add what we need
+  theme(text = element_text(color = "gray20"),
+        legend.position = c("top"), # position the legend in the upper left
+        legend.direction = "horizontal",
+        legend.justification = 0.1, # anchor point for legend.position.
+        legend.text = element_text(size = 11, color = "gray10"),
+        axis.text = element_text(face = "italic"),
+        axis.title.x = element_text(vjust = -1), # move title away from axis
+        axis.title.y = element_text(vjust = 2), # move away for axis
+        axis.ticks.y = element_blank(), # element_blank() is how we remove elements
+        axis.line = element_line(color = "gray40", size = 0.5),
+        axis.line.y = element_blank(),
+        panel.grid.major = element_line(color = "gray50", size = 0.5),
+        panel.grid.major.x = element_blank()) -> economist_theme
+
+gg + economist_theme -> gg
+```
+
+# Change the linetype and alpha by creating a custom function
+
+```{r}
+lm <- summary(lm(HDI ~ CPI + log(CPI), data = dt))
+mr_2 <- paste0(format(lm$r.squared, digits = 2), "%")
+lm
+
+alpha_scale <- scale_alpha_discrete(range = c(0, 1), guide = FALSE)
+linetype_scale <-scale_linetype(name = "",
+                                breaks = "r2",
+                                labels = list(bquote(R^2==.(mr_2))),
+                                guide = guide_legend(override.aes = list(linetype = 1, size = 2, color = "red")))
+
+
+gg + alpha_scale + linetype_scale
+```
+
